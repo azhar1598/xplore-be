@@ -492,4 +492,113 @@ export class StartupController {
       });
     }
   }
+
+  async searchStartups(req: any, res: any) {
+    try {
+      const {
+        search = "", // for startup name
+        category,
+        teamSize,
+        page = 1,
+        limit = 10,
+        orderBy = "created_at",
+        order = "desc",
+      } = req.query;
+
+      // Calculate offset for pagination
+      const offset = (Number(page) - 1) * Number(limit);
+
+      // Start building the query
+      let query = supabase.from("startups").select(
+        `
+          *,
+          startup_roles (*)
+        `,
+        { count: "exact" }
+      );
+
+      // Add search filters
+      if (search) {
+        query = query.ilike("title", `%${search}%`);
+      }
+
+      if (category) {
+        // Handle multiple categories if provided as comma-separated
+        const categories = category.split(",").map((c: string) => c.trim());
+        query = query.in("category", categories);
+      }
+
+      if (teamSize) {
+        // Handle team size ranges
+        // Example: "1-10" or "10-50" or "50+"
+        switch (teamSize) {
+          case "1-10":
+            query = query.lte("team_size", 10);
+            break;
+          case "10-50":
+            query = query.gt("team_size", 10).lte("team_size", 50);
+            break;
+          case "50+":
+            query = query.gt("team_size", 50);
+            break;
+          default:
+            // If exact number provided
+            query = query.eq("team_size", Number(teamSize));
+        }
+      }
+
+      // Add pagination and ordering
+      query = query
+        .order(orderBy, { ascending: order === "asc" })
+        .range(offset, offset + Number(limit) - 1);
+
+      // Execute the query
+      const { data: startups, error, count } = await query;
+
+      if (error) {
+        console.error("Error searching startups:", error);
+        return res.status(500).json({
+          error: "Failed to search startups",
+          details: error.message,
+        });
+      }
+
+      // Calculate pagination metadata
+      const totalPages = count ? Math.ceil(count / Number(limit)) : 0;
+      const hasNextPage = page < totalPages;
+      const hasPreviousPage = page > 1;
+
+      // Get unique categories for filters
+      const { data: categories, error: categoryError } = await supabase
+        .from("startups")
+        .select("category")
+        .not("category", "is", null);
+
+      const uniqueCategories = categories
+        ? [...new Set(categories.map((item) => item.category))].filter(Boolean)
+        : [];
+
+      return res.status(200).json({
+        data: startups,
+        metadata: {
+          total: count,
+          page: Number(page),
+          limit: Number(limit),
+          totalPages,
+          hasNextPage,
+          hasPreviousPage,
+        },
+        filters: {
+          availableCategories: uniqueCategories,
+          teamSizeRanges: ["1-10", "10-50", "50+"],
+        },
+      });
+    } catch (error: any) {
+      console.error("Server error:", error);
+      return res.status(500).json({
+        error: "Internal server error",
+        details: error.message,
+      });
+    }
+  }
 }

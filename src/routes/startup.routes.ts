@@ -24,4 +24,8 @@ startupRouter.get("/:id", (req: any, res: any) =>
   startupController.getStartupSingle(req, res)
 );
 
+startupRouter.get("/search", (req: any, res: any) =>
+  startupController.searchStartups(req, res)
+);
+
 export default startupRouter;
