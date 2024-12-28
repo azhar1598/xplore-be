@@ -123,6 +123,15 @@ export class StartupController {
 
   async getStartups(req: any, res: any) {
     try {
+      const userId = req.user?.id;
+
+      // Check if user is authenticated
+      if (!userId) {
+        return res.status(401).json({
+          error: "Unauthorized: User ID is required",
+        });
+      }
+
       const {
         page = 1,
         limit = 10,
@@ -137,16 +146,19 @@ export class StartupController {
       // Calculate offset for pagination
       const offset = (Number(page) - 1) * Number(limit);
 
-      // Start building the query
-      let query = supabase.from("startups").select(
-        `
+      // Start building the query with user filter
+      let query = supabase
+        .from("startups")
+        .select(
+          `
           *,
           startup_roles (*)
         `,
-        { count: "exact" }
-      );
+          { count: "exact" }
+        )
+        .eq("user_id", userId); // Only get startups for the authenticated user
 
-      // Add filters if they exist
+      // Add additional filters if they exist
       if (category) {
         query = query.eq("category", category);
       }
@@ -175,6 +187,20 @@ export class StartupController {
         return res.status(500).json({
           error: "Failed to fetch startups",
           details: error.message,
+        });
+      }
+
+      if (!startups || startups.length === 0) {
+        return res.status(200).json({
+          data: [],
+          metadata: {
+            total: 0,
+            page: Number(page),
+            limit: Number(limit),
+            totalPages: 0,
+            hasNextPage: false,
+            hasPreviousPage: false,
+          },
         });
       }
 
