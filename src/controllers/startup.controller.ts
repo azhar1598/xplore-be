@@ -120,4 +120,86 @@ export class StartupController {
       });
     }
   }
+
+  async getStartups(req: any, res: any) {
+    try {
+      const {
+        page = 1,
+        limit = 10,
+        category,
+        stage,
+        type,
+        search,
+        orderBy = "created_at",
+        order = "desc",
+      } = req.query;
+
+      // Calculate offset for pagination
+      const offset = (Number(page) - 1) * Number(limit);
+
+      // Start building the query
+      let query = supabase.from("startups").select(
+        `
+          *,
+          startup_roles (*)
+        `,
+        { count: "exact" }
+      );
+
+      // Add filters if they exist
+      if (category) {
+        query = query.eq("category", category);
+      }
+      if (stage) {
+        query = query.eq("stage", stage);
+      }
+      if (type) {
+        query = query.eq("type", type);
+      }
+      if (search) {
+        query = query.or(
+          `title.ilike.%${search}%,description.ilike.%${search}%`
+        );
+      }
+
+      // Add pagination and ordering
+      query = query
+        .order(orderBy, { ascending: order === "asc" })
+        .range(offset, offset + Number(limit) - 1);
+
+      // Execute the query
+      const { data: startups, error, count } = await query;
+
+      if (error) {
+        console.error("Error fetching startups:", error);
+        return res.status(500).json({
+          error: "Failed to fetch startups",
+          details: error.message,
+        });
+      }
+
+      // Calculate pagination metadata
+      const totalPages = count ? Math.ceil(count / Number(limit)) : 0;
+      const hasNextPage = page < totalPages;
+      const hasPreviousPage = page > 1;
+
+      return res.status(200).json({
+        data: startups,
+        metadata: {
+          total: count,
+          page: Number(page),
+          limit: Number(limit),
+          totalPages,
+          hasNextPage,
+          hasPreviousPage,
+        },
+      });
+    } catch (error: any) {
+      console.error("Server error:", error);
+      return res.status(500).json({
+        error: "Internal server error",
+        details: error.message,
+      });
+    }
+  }
 }

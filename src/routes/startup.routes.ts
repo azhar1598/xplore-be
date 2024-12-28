@@ -12,4 +12,8 @@ startupRouter.post("/", (req: any, res: any) =>
   startupController.createStartup(req, res)
 );
 
+startupRouter.get("/", (req: any, res: any) =>
+  startupController.getStartups(req, res)
+);
+
 export default startupRouter;
