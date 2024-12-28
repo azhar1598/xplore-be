@@ -228,4 +228,268 @@ export class StartupController {
       });
     }
   }
+
+  async updateStartup(req: any, res: any) {
+    try {
+      const startupId = req.params.id;
+      const userId = req.user?.id;
+      const {
+        title,
+        type,
+        stage,
+        description,
+        category,
+        teamSize,
+        website,
+        skills,
+        roles,
+      } = req.body;
+
+      // Check if user is authenticated
+      if (!userId) {
+        return res.status(401).json({
+          error: "Unauthorized: User ID is required",
+        });
+      }
+
+      // First check if the startup exists and belongs to the user
+      const { data: existingStartup, error: fetchError } = await supabase
+        .from("startups")
+        .select("*")
+        .eq("id", startupId)
+        .eq("user_id", userId)
+        .single();
+
+      if (fetchError || !existingStartup) {
+        return res.status(404).json({
+          error: "Startup not found or you don't have permission to update it",
+        });
+      }
+
+      // If title is being changed, check for duplicates
+      if (title && title !== existingStartup.title) {
+        const { data: duplicateCheck, error: duplicateError } = await supabase
+          .from("startups")
+          .select("id")
+          .eq("title", title)
+          .eq("user_id", userId)
+          .neq("id", startupId)
+          .single();
+
+        if (duplicateCheck) {
+          return res.status(400).json({
+            error: "You already have another startup with this name",
+          });
+        }
+      }
+
+      // Prepare update object with only provided fields
+      const updateData: any = {};
+      if (title) updateData.title = title;
+      if (type) updateData.type = type;
+      if (stage) updateData.stage = stage;
+      if (description) updateData.description = description;
+      if (category) updateData.category = category;
+      if (teamSize) updateData.team_size = teamSize;
+      if (website) updateData.website_url = website;
+      if (skills) updateData.skills = skills;
+      updateData.updated_at = new Date();
+
+      // Update the startup
+      const { data: updatedStartup, error: updateError } = await supabase
+        .from("startups")
+        .update(updateData)
+        .eq("id", startupId)
+        .eq("user_id", userId)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error("Error updating startup:", updateError);
+        return res.status(500).json({
+          error: "Failed to update startup",
+          details: updateError.message,
+        });
+      }
+
+      // Update roles if provided
+      if (roles && roles.length > 0) {
+        // First, delete existing roles
+        const { error: deleteRolesError } = await supabase
+          .from("startup_roles")
+          .delete()
+          .eq("startup_id", startupId);
+
+        if (deleteRolesError) {
+          console.error("Error deleting existing roles:", deleteRolesError);
+          return res.status(500).json({
+            error: "Failed to update roles",
+            details: deleteRolesError.message,
+          });
+        }
+
+        // Then insert new roles
+        const rolesWithIds = roles.map((role: any) => ({
+          startup_id: startupId,
+          title: role.title,
+          details: role.details,
+          payment_type: role.paymentType,
+          user_id: userId,
+        }));
+
+        const { error: insertRolesError } = await supabase
+          .from("startup_roles")
+          .insert(rolesWithIds);
+
+        if (insertRolesError) {
+          console.error("Error creating new roles:", insertRolesError);
+          return res.status(500).json({
+            error: "Failed to update roles",
+            details: insertRolesError.message,
+          });
+        }
+      }
+
+      // Fetch the final startup with its roles
+      const { data: finalStartup, error: finalError } = await supabase
+        .from("startups")
+        .select(
+          `
+          *,
+          startup_roles (*)
+        `
+        )
+        .eq("id", startupId)
+        .single();
+
+      return res.status(200).json({
+        message: "Startup updated successfully",
+        startup: finalStartup,
+      });
+    } catch (error: any) {
+      console.error("Server error:", error);
+      return res.status(500).json({
+        error: "Internal server error",
+        details: error.message,
+      });
+    }
+  }
+
+  async deleteStartup(req: any, res: any) {
+    try {
+      const startupId = req.params.id;
+      const userId = req.user?.id;
+
+      // Check if user is authenticated
+      if (!userId) {
+        return res.status(401).json({
+          error: "Unauthorized: User ID is required",
+        });
+      }
+
+      // First check if the startup exists and belongs to the user
+      const { data: existingStartup, error: fetchError } = await supabase
+        .from("startups")
+        .select("id")
+        .eq("id", startupId)
+        .eq("user_id", userId)
+        .single();
+
+      if (fetchError || !existingStartup) {
+        return res.status(404).json({
+          error: "Startup not found or you don't have permission to delete it",
+        });
+      }
+
+      // First delete all associated roles
+      const { error: rolesDeleteError } = await supabase
+        .from("startup_roles")
+        .delete()
+        .eq("startup_id", startupId);
+
+      if (rolesDeleteError) {
+        console.error("Error deleting startup roles:", rolesDeleteError);
+        return res.status(500).json({
+          error: "Failed to delete startup roles",
+          details: rolesDeleteError.message,
+        });
+      }
+
+      // Then delete the startup
+      const { error: startupDeleteError } = await supabase
+        .from("startups")
+        .delete()
+        .eq("id", startupId)
+        .eq("user_id", userId);
+
+      if (startupDeleteError) {
+        console.error("Error deleting startup:", startupDeleteError);
+        return res.status(500).json({
+          error: "Failed to delete startup",
+          details: startupDeleteError.message,
+        });
+      }
+
+      return res.status(200).json({
+        message: "Startup and associated roles deleted successfully",
+        deletedId: startupId,
+      });
+    } catch (error: any) {
+      console.error("Server error:", error);
+      return res.status(500).json({
+        error: "Internal server error",
+        details: error.message,
+      });
+    }
+  }
+
+  async getStartupSingle(req: any, res: any) {
+    try {
+      const startupId = req.params.id;
+      const userId = req.user?.id;
+
+      // Check if user is authenticated
+      if (!userId) {
+        return res.status(401).json({
+          error: "Unauthorized: User ID is required",
+        });
+      }
+
+      // Fetch the startup with its roles
+      const { data: startup, error: fetchError } = await supabase
+        .from("startups")
+        .select(
+          `
+          *,
+          startup_roles (*)
+        `
+        )
+        .eq("id", startupId)
+        .eq("user_id", userId) // Ensure user can only see their own startup
+        .single();
+
+      if (fetchError) {
+        console.error("Error fetching startup:", fetchError);
+        return res.status(404).json({
+          error: "Startup not found or you don't have permission to view it",
+        });
+      }
+
+      if (!startup) {
+        return res.status(404).json({
+          error: "Startup not found",
+        });
+      }
+
+      return res.status(200).json({
+        data: startup,
+      });
+    } catch (error: any) {
+      console.error("Server error:", error);
+      return res.status(500).json({
+        error: "Internal server error",
+        details: error.message,
+      });
+    }
+  }
 }
