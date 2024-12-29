@@ -1,4 +1,35 @@
 import { supabase } from "../supabaseClient";
+import { z } from "zod";
+
+const QuerySchema = z.object({
+  page: z.string().optional().default("1"),
+  limit: z.string().optional().default("10"),
+  search: z.string().optional(),
+  category: z.string().optional(),
+  stage: z.string().optional(),
+  type: z.string().optional(),
+  teamSize: z.string().optional(),
+  orderBy: z.string().optional().default("created_at"),
+  order: z.enum(["asc", "desc"]).optional().default("desc"),
+});
+
+const SearchableFields = [
+  "title",
+  "description",
+  "category",
+  "stage",
+  "type",
+  "team_size",
+] as const;
+type SearchField = (typeof SearchableFields)[number];
+
+// Utility function to sanitize search input
+function sanitizeSearchTerm(term: string): string {
+  return term
+    .replace(/[%_]/g, "") // Remove SQL wildcard characters
+    .trim()
+    .toLowerCase();
+}
 
 export class StartupController {
   async createStartup(req: any, res: any) {
@@ -125,71 +156,94 @@ export class StartupController {
     try {
       const userId = req.user?.id;
 
-      // Check if user is authenticated
+      // Check authentication
       if (!userId) {
         return res.status(401).json({
           error: "Unauthorized: User ID is required",
         });
       }
 
+      // Validate and parse query parameters
+      const validation = QuerySchema.safeParse(req.query);
+      if (!validation.success) {
+        return res.status(400).json({
+          error: "Invalid query parameters",
+          details: validation.error.issues,
+        });
+      }
+
       const {
-        page = 1,
-        limit = 10,
+        page,
+        limit,
+        search,
         category,
         stage,
         type,
-        search,
-        orderBy = "created_at",
-        order = "desc",
-      } = req.query;
+        teamSize,
+        orderBy,
+        order,
+      } = validation.data;
 
-      // Calculate offset for pagination
+      // Calculate pagination offset
       const offset = (Number(page) - 1) * Number(limit);
 
-      // Start building the query with user filter
+      // Build base query
       let query = supabase
         .from("startups")
         .select(
           `
-          *,
-          startup_roles (*)
-        `,
+            *,
+            startup_roles (*)
+          `,
           { count: "exact" }
         )
-        .eq("user_id", userId); // Only get startups for the authenticated user
+        .eq("user_id", userId);
 
-      // Add additional filters if they exist
-      if (category) {
-        query = query.eq("category", category);
-      }
-      if (stage) {
-        query = query.eq("stage", stage);
-      }
-      if (type) {
-        query = query.eq("type", type);
-      }
+      // Add search filters
       if (search) {
         query = query.or(
           `title.ilike.%${search}%,description.ilike.%${search}%`
         );
       }
 
-      // Add pagination and ordering
+      // Add category filter
+      if (category) {
+        query = query.eq("category", category);
+      }
+
+      // Add stage filter
+      if (stage) {
+        query = query.eq("stage", stage);
+      }
+
+      // Add type filter
+      if (type) {
+        query = query.eq("type", type);
+      }
+
+      // Add team size filter
+      if (teamSize) {
+        query = query.eq("team_size", teamSize);
+      }
+
+      // Add ordering
       query = query
         .order(orderBy, { ascending: order === "asc" })
         .range(offset, offset + Number(limit) - 1);
 
-      // Execute the query
+      // Execute query
       const { data: startups, error, count } = await query;
 
+      // Handle database errors
       if (error) {
-        console.error("Error fetching startups:", error);
+        console.error("Database error:", error);
         return res.status(500).json({
           error: "Failed to fetch startups",
           details: error.message,
         });
       }
 
+      // Handle empty results
       if (!startups || startups.length === 0) {
         return res.status(200).json({
           data: [],
@@ -206,9 +260,10 @@ export class StartupController {
 
       // Calculate pagination metadata
       const totalPages = count ? Math.ceil(count / Number(limit)) : 0;
-      const hasNextPage = page < totalPages;
-      const hasPreviousPage = page > 1;
+      const hasNextPage = Number(page) < totalPages;
+      const hasPreviousPage = Number(page) > 1;
 
+      // Return successful response
       return res.status(200).json({
         data: startups,
         metadata: {
