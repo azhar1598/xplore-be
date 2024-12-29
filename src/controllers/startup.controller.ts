@@ -34,16 +34,8 @@ function sanitizeSearchTerm(term: string): string {
 export class StartupController {
   async createStartup(req: any, res: any) {
     try {
-      const {
-        title,
-        type,
-        stage,
-        description,
-        category,
-        teamSize,
-        website,
-        roles,
-      } = req.body;
+      const { title, type, stage, description, category, teamSize, website } =
+        req.body;
 
       const userId = req.user?.id;
 
@@ -115,29 +107,29 @@ export class StartupController {
       const startupId = startupData[0].id;
 
       // Then, insert all roles for this startup
-      if (roles && roles.length > 0) {
-        const rolesWithStartupId = roles?.map((role: any) => ({
-          startup_id: startupId,
-          title: role.title,
-          details: role.details,
-          payment_type: role.paymentType,
-          user_id: userId, // Add the user_id to each role record
-        }));
+      //   if (roles && roles.length > 0) {
+      //     const rolesWithStartupId = roles?.map((role: any) => ({
+      //       startup_id: startupId,
+      //       title: role.title,
+      //       details: role.details,
+      //       payment_type: role.paymentType,
+      //       user_id: userId, // Add the user_id to each role record
+      //     }));
 
-        const { error: rolesError } = await supabase
-          .from("startup_roles")
-          .insert(rolesWithStartupId);
+      //     const { error: rolesError } = await supabase
+      //       .from("startup_roles")
+      //       .insert(rolesWithStartupId);
 
-        if (rolesError) {
-          console.error("Error creating roles:", rolesError);
-          // You might want to delete the startup if roles creation fails
-          await supabase.from("startups").delete().eq("id", startupId);
-          return res.status(500).json({
-            error: "Failed to create roles",
-            details: rolesError.message,
-          });
-        }
-      }
+      //     if (rolesError) {
+      //       console.error("Error creating roles:", rolesError);
+      //       // You might want to delete the startup if roles creation fails
+      //       await supabase.from("startups").delete().eq("id", startupId);
+      //       return res.status(500).json({
+      //         error: "Failed to create roles",
+      //         details: rolesError.message,
+      //       });
+      //     }
+      //   }
 
       return res.status(201).json({
         message: "Startup created successfully",
