@@ -7,6 +7,9 @@ const startupController: any = new StartupController();
 startupRouter.post("/", (req: any, res: any) =>
   startupController.createStartup(req, res)
 );
+startupRouter.post("/build-team", (req: any, res: any) =>
+  startupController.createStartup(req, res)
+);
 
 startupRouter.get("/", (req: any, res: any) =>
   startupController.getStartups(req, res)
