@@ -34,7 +34,7 @@ function sanitizeSearchTerm(term: string): string {
 export class StartupController {
   async createStartup(req: any, res: any) {
     try {
-      const { title, type, stage, description, category, teamSize, website } =
+      const { title, stage, description, category, teamSize, website } =
         req.body;
 
       const userId = req.user?.id;
@@ -84,7 +84,6 @@ export class StartupController {
         .insert([
           {
             title,
-            type,
             stage,
             description,
             category,

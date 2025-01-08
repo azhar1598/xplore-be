@@ -19,6 +19,8 @@ export class JobController {
       const { roles, startup_id } = req.body;
       const userId = req.user?.id;
 
+      console.log("userId", req?.user);
+
       if (!userId) {
         return res.status(401).json({
           error: "Unauthorized: User ID is required",
@@ -52,8 +54,8 @@ export class JobController {
 
       // Prepare jobs data for insertion
       const jobsToInsert = roles.map((role: any) => ({
-        role: role.title,
-        description: role.details,
+        title: role.title,
+        details: role.details,
         payment_type: role.paymentType,
         startup_id,
         created_at: new Date(),
