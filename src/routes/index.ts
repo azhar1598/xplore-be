@@ -7,6 +7,7 @@ import startupRouter from "./startup.routes";
 
 import startupPublicRouter from "./public/startup.routes";
 import jobRouter from "./jobRouter";
+import jobPublicRouter from "./public/jobs.routes";
 
 const routes = Router();
 
@@ -20,5 +21,6 @@ const publicRoutes = Router();
 
 // public routes
 publicRoutes.use("/startup", startupPublicRouter);
+publicRoutes.use("/job", jobPublicRouter);
 
 export { routes as protectedRoutes, publicRoutes };

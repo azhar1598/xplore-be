@@ -106,4 +106,40 @@ export class JobPublicController {
       });
     }
   }
+
+  async getPublicJobs(req: any, res: any) {
+    try {
+      const { startup_id } = req.params; // Get startup_id from URL params
+
+      if (!startup_id) {
+        return res.status(400).json({
+          error: "startup_id is required",
+        });
+      }
+
+      // Execute the query to get jobs for the startup
+      const { data: jobs, error } = await supabase
+        .from("jobs")
+        .select("*") // Select all columns from jobs
+        .eq("startup_id", startup_id); // Filter by startup_id
+
+      if (error) {
+        console.error("Error fetching startup jobs:", error);
+        return res.status(500).json({
+          error: "Failed to fetch startup jobs",
+          details: error.message,
+        });
+      }
+
+      return res.status(200).json({
+        jobs,
+      });
+    } catch (error: any) {
+      console.error("Server error:", error);
+      return res.status(500).json({
+        error: "Internal server error",
+        details: error.message,
+      });
+    }
+  }
 }
